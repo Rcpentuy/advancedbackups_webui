@@ -250,14 +250,21 @@ const stopMinecraftServer = async () => {
   if (!minecraftServerPath) {
     await findMinecraftServerFolder();
   }
+
+  const sessionName = "mc";
+
+  // 发送停止命令
   await execPromise(
-    `cd ${minecraftServerPath} && screen -S mc -X stuff '/stop\n'`
+    `cd ${minecraftServerPath} && screen -S ${sessionName} -X stuff '/stop\n'`
   );
 
   // 等待服务器完全关闭
   while (await isMinecraftRunning()) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
+
+  // 服务器关闭后，退出screen会话但保持在后台
+  await execPromise(`screen -S ${sessionName} -X detach`);
 };
 
 // 恢复指定的备份
@@ -337,7 +344,28 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
   }
 });
 
-// 检查screen会话是否存在
+// 添加一个函数来检查和清理多余的screen会话
+const cleanupScreenSessions = async (sessionName) => {
+  try {
+    const { stdout } = await execPromise(`screen -ls | grep ${sessionName}`);
+    const sessions = stdout
+      .split("\n")
+      .filter((line) => line.includes(sessionName));
+
+    if (sessions.length > 1) {
+      console.log(`发现多个${sessionName}会话，正在清理...`);
+      for (let i = 1; i < sessions.length; i++) {
+        const sessionId = sessions[i].split(".")[0].trim();
+        await execPromise(`screen -S ${sessionId} -X quit`);
+      }
+      console.log("多余的会话已清理完毕");
+    }
+  } catch (error) {
+    console.error(`清理screen会话时出错: ${error}`);
+  }
+};
+
+// 修改isScreenSessionExist函数
 const isScreenSessionExist = async (sessionName) => {
   try {
     const { stdout } = await execPromise(`screen -ls | grep ${sessionName}`);
@@ -347,7 +375,7 @@ const isScreenSessionExist = async (sessionName) => {
   }
 };
 
-// 启动Minecraft服务器
+// 修改启动Minecraft服务器的路由
 app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
   try {
     if (!minecraftServerPath) {
@@ -373,22 +401,17 @@ app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
       startCommand = `java -Xmx2G -jar ${jarPath} nogui`;
     }
 
+    // 清理多余的screen会话
+    await cleanupScreenSessions(sessionName);
+
     // 检查screen会话是否存在
     const sessionExists = await isScreenSessionExist(sessionName);
 
     if (sessionExists) {
       // 如果会话存在，尝试进入该会话并启动服务器
-      try {
-        await execPromise(
-          `cd ${minecraftServerPath} && screen -r ${sessionName} -X stuff $'${startCommand}\n'`
-        );
-      } catch (error) {
-        console.error(`无法在现有会话中启动服务器: ${error}`);
-        // 如果在现有会话中启动失败，尝试创建新会话
-        await execPromise(
-          `cd ${minecraftServerPath} && screen -dmS ${sessionName} bash -c '${startCommand}'`
-        );
-      }
+      await execPromise(
+        `cd ${minecraftServerPath} && screen -r ${sessionName} -X stuff $'${startCommand}\n'`
+      );
     } else {
       // 如果会话不存在，创建新会话并启动服务器
       await execPromise(
@@ -437,6 +460,8 @@ app.get("/api/console-output", authenticateToken, (req, res) => {
   res.json({ output: consoleOutput });
 });
 
-app.listen(port, "0.0.0.0", () => {
+// 在服务器启动时清理多余的screen会话
+app.listen(port, "0.0.0.0", async () => {
   console.log(`服务器运行在 http://${getServerIP()}:${port}`);
+  await cleanupScreenSessions("mc");
 });
