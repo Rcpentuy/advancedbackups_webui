@@ -10,6 +10,7 @@ const os = require("os");
 const { spawn } = require("child_process");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const readline = require("readline");
 require("dotenv").config(); // 添加这行来加载 .env 文件
 
 const app = express();
@@ -24,6 +25,40 @@ app.use(
 app.use(bodyParser.json());
 
 let minecraftServerPath = "";
+
+// 添加一个全局变量来存储最新的控制台输出
+let consoleOutput = [];
+
+// 添加一个函数来启动 screen 会话的输出监听
+const startScreenOutputListener = () => {
+  const process = spawn("screen", ["-S", "mc", "-X", "hardcopy", "-"]);
+
+  const rl = readline.createInterface({
+    input: process.stdout,
+    crlfDelay: Infinity,
+  });
+
+  rl.on("line", (line) => {
+    consoleOutput.push(line);
+    if (consoleOutput.length > 100) {
+      consoleOutput.shift(); // 保持最新的100行
+    }
+  });
+
+  process.stderr.on("data", (data) => {
+    console.error(`screen 命令错误: ${data}`);
+  });
+
+  process.on("close", (code) => {
+    console.log(`screen 命令退出，代码: ${code}`);
+  });
+};
+
+// 在服务器启动时开始监听
+startScreenOutputListener();
+
+// 每5秒刷新一次输出
+setInterval(startScreenOutputListener, 5000);
 
 // 查找Minecraft服务器文件夹
 const findMinecraftServerFolder = async () => {
@@ -361,6 +396,9 @@ app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
       );
     }
 
+    // 启动服务器后，开始监听输出
+    startScreenOutputListener();
+
     res.json({ message: "Minecraft服务器启动命令已发送" });
   } catch (error) {
     console.error(`启动Minecraft服务器时出错: ${error}`);
@@ -392,6 +430,11 @@ function getServerIP() {
 // 新增：API 端点，返回服务器 IP 地址
 app.get("/api/server-info", authenticateToken, (req, res) => {
   res.json({ ip: getServerIP(), port: port });
+});
+
+// 添加一个新的路由来获取控制台输出
+app.get("/api/console-output", authenticateToken, (req, res) => {
+  res.json({ output: consoleOutput });
 });
 
 app.listen(port, "0.0.0.0", () => {
