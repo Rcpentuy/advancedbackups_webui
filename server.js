@@ -321,6 +321,30 @@ app.post("/api/start-minecraft", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`服务器运行在 http://localhost:${port}`);
+// 新增：获取服务器 IP 地址的函数
+function getServerIP() {
+  const interfaces = os.networkInterfaces();
+  for (const devName in interfaces) {
+    const iface = interfaces[devName];
+    for (let i = 0; i < iface.length; i++) {
+      const alias = iface[i];
+      if (
+        alias.family === "IPv4" &&
+        alias.address !== "127.0.0.1" &&
+        !alias.internal
+      ) {
+        return alias.address;
+      }
+    }
+  }
+  return "0.0.0.0"; // 如果没有找到合适的 IP，返回一个默认值
+}
+
+// 新增：API 端点，返回服务器 IP 地址
+app.get("/api/server-info", (req, res) => {
+  res.json({ ip: getServerIP(), port: port });
+});
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`服务器运行在 http://${getServerIP()}:${port}`);
 });

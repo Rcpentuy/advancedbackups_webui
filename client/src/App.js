@@ -5,14 +5,28 @@ function App() {
   const [backups, setBackups] = useState([]);
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [message, setMessage] = useState("");
+  const [serverInfo, setServerInfo] = useState(null);
 
   useEffect(() => {
-    fetchBackups();
+    fetchServerInfo();
   }, []);
 
-  const fetchBackups = async () => {
+  const fetchServerInfo = async () => {
     try {
-      const response = await axios.get("http://localhost:3001/api/backups");
+      const response = await axios.get("http://localhost:3001/api/server-info");
+      setServerInfo(response.data);
+      fetchBackups(response.data);
+    } catch (error) {
+      console.error("获取服务器信息失败:", error);
+      setMessage("获取服务器信息失败");
+    }
+  };
+
+  const fetchBackups = async (info) => {
+    try {
+      const response = await axios.get(
+        `http://${info.ip}:${info.port}/api/backups`
+      );
       setBackups(response.data);
     } catch (error) {
       console.error("获取备份列表失败:", error);
@@ -23,7 +37,7 @@ function App() {
   const stopMinecraft = async () => {
     try {
       const response = await axios.post(
-        "http://localhost:3001/api/stop-minecraft"
+        `http://${serverInfo.ip}:${serverInfo.port}/api/stop-minecraft`
       );
       setMessage(response.data.message);
     } catch (error) {
@@ -35,7 +49,7 @@ function App() {
   const startMinecraft = async () => {
     try {
       const response = await axios.post(
-        "http://localhost:3001/api/start-minecraft"
+        `http://${serverInfo.ip}:${serverInfo.port}/api/start-minecraft`
       );
       setMessage(response.data.message);
     } catch (error) {
@@ -52,7 +66,7 @@ function App() {
 
     try {
       const response = await axios.post(
-        "http://localhost:3001/api/restore-backup",
+        `http://${serverInfo.ip}:${serverInfo.port}/api/restore-backup`,
         selectedBackup
       );
       setMessage(response.data.message);
