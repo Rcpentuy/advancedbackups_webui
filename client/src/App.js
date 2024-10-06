@@ -13,7 +13,7 @@ function App() {
 
   const fetchServerInfo = async () => {
     try {
-      const response = await axios.get("http://localhost:3001/api/server-info");
+      const response = await axios.get("/api/server-info");
       setServerInfo(response.data);
       fetchBackups(response.data);
     } catch (error) {
