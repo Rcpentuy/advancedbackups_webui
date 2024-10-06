@@ -22,11 +22,9 @@ function App() {
     }
   };
 
-  const fetchBackups = async (info) => {
+  const fetchBackups = async () => {
     try {
-      const response = await axios.get(
-        `http://${info.ip}:${info.port}/api/backups`
-      );
+      const response = await axios.get(`/api/backups`);
       setBackups(response.data);
     } catch (error) {
       console.error("获取备份列表失败:", error);
@@ -36,9 +34,7 @@ function App() {
 
   const stopMinecraft = async () => {
     try {
-      const response = await axios.post(
-        `http://${serverInfo.ip}:${serverInfo.port}/api/stop-minecraft`
-      );
+      const response = await axios.post(`/api/stop-minecraft`);
       setMessage(response.data.message);
     } catch (error) {
       console.error("停止Minecraft服务器失败:", error);
@@ -48,9 +44,7 @@ function App() {
 
   const startMinecraft = async () => {
     try {
-      const response = await axios.post(
-        `http://${serverInfo.ip}:${serverInfo.port}/api/start-minecraft`
-      );
+      const response = await axios.post(`/api/start-minecraft`);
       setMessage(response.data.message);
     } catch (error) {
       console.error("启动Minecraft服务器失败:", error);
@@ -65,10 +59,7 @@ function App() {
     }
 
     try {
-      const response = await axios.post(
-        `http://${serverInfo.ip}:${serverInfo.port}/api/restore-backup`,
-        selectedBackup
-      );
+      const response = await axios.post(`/api/restore-backup`, selectedBackup);
       setMessage(response.data.message);
     } catch (error) {
       console.error("恢复备份失败:", error);
