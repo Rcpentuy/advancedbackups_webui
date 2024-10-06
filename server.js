@@ -8,6 +8,9 @@ const util = require("util");
 const execPromise = util.promisify(exec);
 const os = require("os");
 const { spawn } = require("child_process");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+require("dotenv").config(); // 添加这行来加载 .env 文件
 
 const app = express();
 const port = 3001;
@@ -81,8 +84,49 @@ const checkRequiredFiles = async (folderPath) => {
   }
 };
 
+// 使用环境变量中的 JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// 在服务器启动时生成密码哈希
+let HASHED_PASSWORD;
+bcrypt.hash(process.env.LOGIN_PASSWORD, 10).then((hash) => {
+  HASHED_PASSWORD = hash;
+});
+
+// 验证 JWT token 的中间件
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
+// 登录路由
+app.post("/api/login", async (req, res) => {
+  const { password } = req.body;
+
+  try {
+    if (await bcrypt.compare(password, HASHED_PASSWORD)) {
+      const token = jwt.sign({ username: "admin" }, JWT_SECRET, {
+        expiresIn: "30m",
+      });
+      res.json({ success: true, token });
+    } else {
+      res.status(401).json({ success: false, message: "密码错误" });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: "服务器错误" });
+  }
+});
+
 // 获取备份列表
-app.get("/api/backups", async (req, res) => {
+app.get("/api/backups", authenticateToken, async (req, res) => {
   try {
     if (!minecraftServerPath) {
       await findMinecraftServerFolder();
@@ -132,7 +176,7 @@ const getZipFiles = async (dir) => {
 };
 
 // 关闭Minecraft服器
-app.post("/api/stop-minecraft", async (req, res) => {
+app.post("/api/stop-minecraft", authenticateToken, async (req, res) => {
   try {
     if (!minecraftServerPath) {
       await findMinecraftServerFolder();
@@ -182,7 +226,7 @@ const stopMinecraftServer = async () => {
 };
 
 // 恢复指定的备份
-app.post("/api/restore-backup", async (req, res) => {
+app.post("/api/restore-backup", authenticateToken, async (req, res) => {
   try {
     const { backupName, backupType } = req.body;
 
@@ -269,7 +313,7 @@ const isScreenSessionExist = async (sessionName) => {
 };
 
 // 启动Minecraft服务器
-app.post("/api/start-minecraft", async (req, res) => {
+app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
   try {
     if (!minecraftServerPath) {
       await findMinecraftServerFolder();
@@ -346,7 +390,7 @@ function getServerIP() {
 }
 
 // 新增：API 端点，返回服务器 IP 地址
-app.get("/api/server-info", (req, res) => {
+app.get("/api/server-info", authenticateToken, (req, res) => {
   res.json({ ip: getServerIP(), port: port });
 });
 

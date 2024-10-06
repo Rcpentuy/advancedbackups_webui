@@ -6,10 +6,44 @@ function App() {
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [message, setMessage] = useState("");
   const [serverInfo, setServerInfo] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    fetchServerInfo();
+    const token = localStorage.getItem("token");
+    if (token) {
+      setIsLoggedIn(true);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      fetchServerInfo();
+    }
   }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(`/api/login`, { password });
+      if (response.data.success) {
+        setIsLoggedIn(true);
+        setMessage("");
+        localStorage.setItem("token", response.data.token);
+        axios.defaults.headers.common[
+          "Authorization"
+        ] = `Bearer ${response.data.token}`;
+        fetchServerInfo();
+      } else {
+        setMessage("登录失败：密码错误");
+      }
+    } catch (error) {
+      console.error("登录失败:", error);
+      setMessage("登录失败：服务器错误");
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem("token");
+    delete axios.defaults.headers.common["Authorization"];
+  };
 
   const fetchServerInfo = async () => {
     try {
@@ -67,14 +101,66 @@ function App() {
     }
   };
 
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
+        <div className="relative py-3 sm:max-w-xl sm:mx-auto">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
+          <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+            <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
+              登录
+            </h1>
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label
+                  htmlFor="password"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  密码
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                登录
+              </button>
+            </form>
+            {message && (
+              <p className="mt-4 text-center text-red-500 font-semibold">
+                {message}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
       <div className="relative py-3 sm:max-w-xl sm:mx-auto">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
         <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-          <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
-            Minecraft 服务器管理
-          </h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-bold text-gray-800">
+              Minecraft 服务器管理
+            </h1>
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out"
+            >
+              登出
+            </button>
+          </div>
 
           <div className="mb-8 flex justify-center space-x-4">
             <button
