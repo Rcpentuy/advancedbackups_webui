@@ -12,7 +12,12 @@ const { spawn } = require("child_process");
 const app = express();
 const port = 3001;
 
-app.use(cors({ origin: "*" }));
+app.use(
+  cors({
+    origin: "*",
+    credentials: true,
+  })
+);
 app.use(bodyParser.json());
 
 let minecraftServerPath = "";
