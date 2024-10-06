@@ -1,0 +1,27 @@
+{
+  "name": "advancedbackups_webui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "client": "cd client && npm start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "autoprefixer": "^10.4.20",
+    "axios": "^1.7.7",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
