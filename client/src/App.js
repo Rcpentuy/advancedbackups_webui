@@ -221,7 +221,6 @@ function App() {
               </h2>
               <p>状态: {serverStatus}</p>
               <p>IP: {serverInfo.ip}</p>
-              <p>端口: {serverInfo.port}</p>
               <p>
                 在线玩家:{" "}
                 <span data-playercounter-ip={`${serverInfo.ip}`}>

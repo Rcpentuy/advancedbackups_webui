@@ -279,7 +279,7 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
         : backupType === "snapshots"
         ? "4"
         : "1",
-      "3", // 选择恢���整个世界
+      "3", // 选择恢复整个世界
       "2", // 选择服务器
       "1", // 选择世界（假设为"world"）
       backupIndex.toString(), // 选择正确的备份
@@ -371,28 +371,22 @@ app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
   }
 });
 
-// 新增：获取服务器 IP 地址的函数
-function getServerIP() {
-  const interfaces = os.networkInterfaces();
-  for (const devName in interfaces) {
-    const iface = interfaces[devName];
-    for (let i = 0; i < iface.length; i++) {
-      const alias = iface[i];
-      if (
-        alias.family === "IPv4" &&
-        alias.address !== "127.0.0.1" &&
-        !alias.internal
-      ) {
-        return alias.address;
-      }
-    }
+// 修改：获取公网 IP 地址的函数
+async function getPublicIP() {
+  try {
+    const response = await fetch("https://api.ipify.org?format=json");
+    const data = await response.json();
+    return data.ip;
+  } catch (error) {
+    console.error("获取公网 IP 地址失败:", error);
+    return "无法获取公网 IP";
   }
-  return "0.0.0.0"; // 如果没有找到合适的 IP，返回一个默认值
 }
 
-// 新增：API 端点，返回服务器 IP 地址
-app.get("/api/server-info", authenticateToken, (req, res) => {
-  res.json({ ip: getServerIP(), port: port });
+// 修改：API 端点，返回服务器公网 IP 地址
+app.get("/api/server-info", authenticateToken, async (req, res) => {
+  const publicIP = await getPublicIP();
+  res.json({ ip: publicIP });
 });
 
 // 新增: 获取服务器状态的 API 端点
@@ -413,5 +407,5 @@ app.get("/api/server-status", authenticateToken, async (req, res) => {
 });
 
 app.listen(port, "0.0.0.0", () => {
-  console.log(`服务器运行在 http://${getServerIP()}:${port}`);
+  console.log(`服务器运行在 http://${getPublicIP()}:${port}`);
 });
