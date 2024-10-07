@@ -11,6 +11,7 @@ const { spawn } = require("child_process");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config(); // 添加这行来加载 .env 文件
+const fetch = require("node-fetch");
 
 const app = express();
 const port = 3001;
@@ -278,7 +279,7 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
         : backupType === "snapshots"
         ? "4"
         : "1",
-      "3", // 选择恢复整个世界
+      "3", // 选择恢���整个世界
       "2", // 选择服务器
       "1", // 选择世界（假设为"world"）
       backupIndex.toString(), // 选择正确的备份
@@ -392,6 +393,23 @@ function getServerIP() {
 // 新增：API 端点，返回服务器 IP 地址
 app.get("/api/server-info", authenticateToken, (req, res) => {
   res.json({ ip: getServerIP(), port: port });
+});
+
+// 新增: 获取服务器状态的 API 端点
+app.get("/api/server-status", authenticateToken, async (req, res) => {
+  const { ip } = req.query;
+  if (!ip) {
+    return res.status(400).json({ error: "Missing IP parameter" });
+  }
+
+  try {
+    const response = await fetch(`https://api.mcsrvstat.us/2/${ip}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error("获取服务器状态失败:", error);
+    res.status(500).json({ error: "无法获取服务器状态" });
+  }
 });
 
 app.listen(port, "0.0.0.0", () => {

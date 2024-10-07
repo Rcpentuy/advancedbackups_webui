@@ -8,6 +8,8 @@ function App() {
   const [serverInfo, setServerInfo] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState("");
+  const [serverStatus, setServerStatus] = useState("未知");
+  const [playerCount, setPlayerCount] = useState(0);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -15,7 +17,20 @@ function App() {
       setIsLoggedIn(true);
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       fetchServerInfo();
+    } else {
+      setIsLoggedIn(false);
     }
+
+    // 添加 mc-player-counter 脚本
+    const script = document.createElement("script");
+    script.src =
+      "https://cdn.jsdelivr.net/gh/leonardosnt/mc-player-counter/dist/mc-player-counter.min.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
   }, []);
 
   const handleLogin = async (e) => {
@@ -35,12 +50,15 @@ function App() {
       }
     } catch (error) {
       console.error("登录失败:", error);
-      setMessage("登录失败：服务器错误");
+      setMessage("登录失败：密码错误");
     }
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setServerInfo(null);
+    setBackups([]);
+    setSelectedBackup(null);
     localStorage.removeItem("token");
     delete axios.defaults.headers.common["Authorization"];
   };
@@ -50,9 +68,14 @@ function App() {
       const response = await axios.get("/api/server-info");
       setServerInfo(response.data);
       fetchBackups(response.data);
+      updateServerStatus(response.data.ip);
     } catch (error) {
       console.error("获取服务器信息失败:", error);
-      setMessage("获取服务器信息失败");
+      if (error.response && error.response.status === 401) {
+        handleLogout();
+      } else {
+        setMessage("获取服务器信息失败");
+      }
     }
   };
 
@@ -101,12 +124,42 @@ function App() {
     }
   };
 
+  const updateServerStatus = async (ip) => {
+    try {
+      const response = await axios.get(`/api/server-status?ip=${ip}`);
+      setServerStatus(response.data.online ? "在线" : "离线");
+      setPlayerCount(response.data.players.online);
+    } catch (error) {
+      console.error("获取服务器状态失败:", error);
+      setServerStatus("未知");
+      setPlayerCount(0);
+    }
+  };
+
+  // 在每个API调用中添加错误处理
+  const apiCall = async (func) => {
+    try {
+      await func();
+    } catch (error) {
+      console.error("API调用失败:", error);
+      if (error.response && error.response.status === 401) {
+        handleLogout();
+      } else {
+        setMessage("操作失败，请重试");
+      }
+    }
+  };
+
+  // 使用apiCall包装现有的API调用函数
+  const wrappedStopMinecraft = () => apiCall(stopMinecraft);
+  const wrappedStartMinecraft = () => apiCall(startMinecraft);
+  const wrappedRestoreBackup = () => apiCall(restoreBackup);
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
         <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
-          <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+          <div className="px-4 py-10 bg-white shadow-lg sm:rounded-lg sm:p-20">
             <h1 className="text-4xl font-bold mb-8 text-center text-gray-800">
               登录
             </h1>
@@ -147,30 +200,46 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
-      <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
-        <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+      <div className="relative py-3 sm:max-w-4xl sm:mx-auto">
+        <div className="px-4 py-10 bg-white shadow-lg sm:rounded-lg sm:p-20">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-bold text-gray-800">
               Minecraft 服务器管理
             </h1>
             <button
               onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out"
+              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
             >
               登出
             </button>
           </div>
 
+          {serverInfo && (
+            <div className="mb-8 bg-gray-50 p-4 rounded-lg shadow">
+              <h2 className="text-2xl font-semibold mb-2 text-gray-700">
+                服务器状态
+              </h2>
+              <p>状态: {serverStatus}</p>
+              <p>IP: {serverInfo.ip}</p>
+              <p>端口: {serverInfo.port}</p>
+              <p>
+                在线玩家:{" "}
+                <span data-playercounter-ip={`${serverInfo.ip}`}>
+                  {playerCount}
+                </span>
+              </p>
+            </div>
+          )}
+
           <div className="mb-8 flex justify-center space-x-4">
             <button
-              onClick={startMinecraft}
+              onClick={wrappedStartMinecraft}
               className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
             >
               启动服务器
             </button>
             <button
-              onClick={stopMinecraft}
+              onClick={wrappedStopMinecraft}
               className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
             >
               停止服务器
@@ -222,7 +291,7 @@ function App() {
                 {selectedBackup.backupName} ({selectedBackup.backupType})
               </p>
               <button
-                onClick={restoreBackup}
+                onClick={wrappedRestoreBackup}
                 className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
               >
                 恢复此备份
