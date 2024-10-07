@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
 function App() {
@@ -10,6 +10,8 @@ function App() {
   const [password, setPassword] = useState("");
   const [serverStatus, setServerStatus] = useState("未知");
   const [playerCount, setPlayerCount] = useState(0);
+  const [restoreProgress, setRestoreProgress] = useState(0);
+  const wsRef = useRef(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -28,8 +30,21 @@ function App() {
     script.async = true;
     document.body.appendChild(script);
 
+    // 创建 WebSocket 连接
+    wsRef.current = new WebSocket(`ws://${window.location.hostname}:3001`);
+
+    wsRef.current.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "progress") {
+        setRestoreProgress(Math.min(data.percentage, 100));
+      }
+    };
+
     return () => {
       document.body.removeChild(script);
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
   }, []);
 
@@ -116,11 +131,15 @@ function App() {
     }
 
     try {
+      setRestoreProgress(0);
       const response = await axios.post(`/api/restore-backup`, selectedBackup);
       setMessage(response.data.message);
     } catch (error) {
       console.error("恢复备份失败:", error);
       setMessage("恢复备份失败");
+    } finally {
+      // 不要在这里重置进度，让它保持在100%
+      // setRestoreProgress(0);
     }
   };
 
@@ -295,6 +314,17 @@ function App() {
               >
                 恢复此备份
               </button>
+              {restoreProgress > 0 && (
+                <div className="mt-4">
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                    <div
+                      className="bg-blue-600 h-2.5 rounded-full"
+                      style={{ width: `${restoreProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-center mt-2">{restoreProgress}%</p>
+                </div>
+              )}
             </div>
           )}
 

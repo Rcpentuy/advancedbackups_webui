@@ -12,6 +12,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 require("dotenv").config(); // 添加这行来加载 .env 文件
 const fetch = require("node-fetch");
+const WebSocket = require("ws");
 
 const app = express();
 const port = 3001;
@@ -226,7 +227,10 @@ const stopMinecraftServer = async () => {
   }
 };
 
-// 恢复指定的备份
+// 创建 WebSocket 服务器
+const wss = new WebSocket.Server({ noServer: true });
+
+// 修改恢复备份的路由
 app.post("/api/restore-backup", authenticateToken, async (req, res) => {
   try {
     const { backupName, backupType } = req.body;
@@ -287,14 +291,55 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
     ];
 
     // 执行恢复脚本
-    const { stdout, stderr } = await execPromise(
-      `cd ${minecraftServerPath} && echo "${inputs.join("\n")}" | ${scriptPath}`
-    );
+    const child = spawn("bash", [scriptPath], { cwd: minecraftServerPath });
 
-    console.log("脚本输出:", stdout);
-    if (stderr) {
-      console.error("脚本错误:", stderr);
+    let progress = 0;
+    const totalSteps = inputs.length;
+
+    child.stdout.on("data", (data) => {
+      console.log(`脚本输出: ${data}`);
+      // 只在接收到特定输出时更新进度
+      if (data.toString().includes("请输入")) {
+        progress++;
+        const percentage = Math.min(
+          Math.round((progress / totalSteps) * 100),
+          100
+        );
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: "progress", percentage }));
+          }
+        });
+      }
+    });
+
+    child.stderr.on("data", (data) => {
+      console.error(`脚本错误: ${data}`);
+    });
+
+    for (const input of inputs) {
+      child.stdin.write(input + "\n");
     }
+
+    child.stdin.end();
+
+    await new Promise((resolve, reject) => {
+      child.on("close", (code) => {
+        if (code === 0) {
+          // 确保在脚本完成时发送100%进度
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(
+                JSON.stringify({ type: "progress", percentage: 100 })
+              );
+            }
+          });
+          resolve();
+        } else {
+          reject(new Error(`脚本退出，代码: ${code}`));
+        }
+      });
+    });
 
     res.json({ message: `备份 ${backupName} 已成功恢复` });
   } catch (err) {
@@ -406,6 +451,12 @@ app.get("/api/server-status", authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(port, "0.0.0.0", () => {
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`服务器运行在 http://${getPublicIP()}:${port}`);
+});
+
+server.on("upgrade", (request, socket, head) => {
+  wss.handleUpgrade(request, socket, head, (ws) => {
+    wss.emit("connection", ws, request);
+  });
 });
