@@ -44,6 +44,9 @@ function App() {
       }
     };
 
+    // 设置文档标题
+    document.title = "Rollback Helper";
+
     return () => {
       document.body.removeChild(script);
       if (wsRef.current) {
@@ -265,7 +268,7 @@ function App() {
         <div className="px-4 py-10 bg-white shadow-lg sm:rounded-lg sm:p-20">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-bold text-gray-800">
-              Minecraft 服务器管理
+              Rollback Helper (Beta)
             </h1>
             <button
               onClick={handleLogout}
