@@ -76,7 +76,7 @@ const checkRequiredFiles = async (folderPath) => {
     ]);
 
     return (
-      stats[0].isDirectory() && // backups 是目录
+      stats[0].isDirectory() && // backups 是目��
       stats[1].isFile() && // eula.txt 是文件
       stats[2].isDirectory() && // world 是目录
       stats[3].isFile() // server.properties 是文件
@@ -293,24 +293,14 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
     // 执行恢复脚本
     const child = spawn("bash", [scriptPath], { cwd: minecraftServerPath });
 
-    let progress = 0;
-    const totalSteps = inputs.length;
-
     child.stdout.on("data", (data) => {
       console.log(`脚本输出: ${data}`);
-      // 只在接收到特定输出时更新进度
-      if (data.toString().includes("请输入")) {
-        progress++;
-        const percentage = Math.min(
-          Math.round((progress / totalSteps) * 100),
-          100
-        );
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ type: "progress", percentage }));
-          }
-        });
-      }
+      // 发送进度更新
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ type: "progress", status: "running" }));
+        }
+      });
     });
 
     child.stderr.on("data", (data) => {
@@ -326,11 +316,11 @@ app.post("/api/restore-backup", authenticateToken, async (req, res) => {
     await new Promise((resolve, reject) => {
       child.on("close", (code) => {
         if (code === 0) {
-          // 确保在脚本完成时发送100%进度
+          // 发送完成消息
           wss.clients.forEach((client) => {
             if (client.readyState === WebSocket.OPEN) {
               client.send(
-                JSON.stringify({ type: "progress", percentage: 100 })
+                JSON.stringify({ type: "progress", status: "completed" })
               );
             }
           });
@@ -401,7 +391,7 @@ app.post("/api/start-minecraft", authenticateToken, async (req, res) => {
         );
       }
     } else {
-      // 如果会话不存在，创建新会话并启动服务器
+      // 如果会话不存在，创建新会话并���动服务器
       await execPromise(
         `cd ${minecraftServerPath} && screen -dmS ${sessionName} bash -c '${startCommand}'`
       );

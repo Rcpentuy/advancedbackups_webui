@@ -10,7 +10,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [serverStatus, setServerStatus] = useState("未知");
   const [playerCount, setPlayerCount] = useState(0);
-  const [restoreProgress, setRestoreProgress] = useState(0);
+  const [restoreStatus, setRestoreStatus] = useState("idle"); // 'idle', 'running', 'completed'
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -36,7 +36,11 @@ function App() {
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "progress") {
-        setRestoreProgress(Math.min(data.percentage, 100));
+        setRestoreStatus(data.status);
+        if (data.status === "completed") {
+          // 当收到完成消息时，将状态设置为 idle
+          setTimeout(() => setRestoreStatus("idle"), 2000); // 2秒后重置状态
+        }
       }
     };
 
@@ -131,15 +135,14 @@ function App() {
     }
 
     try {
-      setRestoreProgress(0);
+      setRestoreStatus("running");
       const response = await axios.post(`/api/restore-backup`, selectedBackup);
       setMessage(response.data.message);
+      // 不要在这里设置 setRestoreStatus("idle")，而是等待 WebSocket 消息
     } catch (error) {
       console.error("恢复备份失败:", error);
       setMessage("恢复备份失败");
-    } finally {
-      // 不要在这里重置进度，让它保持在100%
-      // setRestoreProgress(0);
+      setRestoreStatus("idle");
     }
   };
 
@@ -173,6 +176,45 @@ function App() {
   const wrappedStopMinecraft = () => apiCall(stopMinecraft);
   const wrappedStartMinecraft = () => apiCall(startMinecraft);
   const wrappedRestoreBackup = () => apiCall(restoreBackup);
+
+  // 修改 ProgressBar 组件
+  const ProgressBar = () => {
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+      if (restoreStatus === "running") {
+        const interval = setInterval(() => {
+          setProgress((prevProgress) => (prevProgress + 1) % 100);
+        }, 50);
+        return () => clearInterval(interval);
+      }
+    }, [restoreStatus]);
+
+    if (restoreStatus === "idle") return null;
+
+    return (
+      <div className="mt-4">
+        <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+          <div
+            className="bg-blue-600 h-full rounded-full transition-all duration-500 ease-in-out"
+            style={{
+              width: restoreStatus === "completed" ? "100%" : `${progress}%`,
+              backgroundImage:
+                "linear-gradient(to right, #3b82f6, #60a5fa, #3b82f6)",
+              backgroundSize: "200% 100%",
+              animation:
+                restoreStatus === "running"
+                  ? "gradientMove 2s linear infinite"
+                  : "none",
+            }}
+          ></div>
+        </div>
+        <p className="text-center mt-2">
+          {restoreStatus === "running" ? "正在恢复备份..." : "恢复完成"}
+        </p>
+      </div>
+    );
+  };
 
   if (!isLoggedIn) {
     return (
@@ -311,20 +353,11 @@ function App() {
               <button
                 onClick={wrappedRestoreBackup}
                 className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 ease-in-out transform hover:-translate-y-1 hover:scale-110"
+                disabled={restoreStatus === "running"}
               >
                 恢复此备份
               </button>
-              {restoreProgress > 0 && (
-                <div className="mt-4">
-                  <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                    <div
-                      className="bg-blue-600 h-2.5 rounded-full"
-                      style={{ width: `${restoreProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-center mt-2">{restoreProgress}%</p>
-                </div>
-              )}
+              <ProgressBar />
             </div>
           )}
 
