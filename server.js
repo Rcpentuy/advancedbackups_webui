@@ -63,7 +63,7 @@ setInterval(startScreenOutputListener, 5000);
 // 查找Minecraft服务器文件夹
 const findMinecraftServerFolder = async () => {
   const possibleRootDirs =
-    os.platform() === "darwin" ? ["/Users/tovkaic/Desktop"] : ["/home"];
+    os.platform() === "darwin" ? [path.join(os.homedir(), "Desktop")] : ["/home"];
 
   const searchDirectory = async (dir, depth = 0) => {
     if (depth > 5) return; // 限制搜索深度，防止无限递归
