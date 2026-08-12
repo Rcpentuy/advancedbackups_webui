@@ -1,0 +1,21 @@
+name: Privacy scan
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject identity join keys
+        shell: bash
+        run: |
+          sensitive='tov''kaic|Rcp''entuy|jiatong-xie@g\.ecc\.u-tokyo\.ac\.jp'
+          home_path='/''Users/[[:alnum:]_.-]+'
+          if git grep -nEI -e "$sensitive" -e "$home_path" -- . \
+            ':(exclude).github/workflows/privacy-scan.yml'; then
+            echo 'Remove the identity join key or make the path portable.' >&2
+            exit 1
+          fi
